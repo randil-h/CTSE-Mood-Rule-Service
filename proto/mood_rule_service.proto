@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package moodrule;
+
+option go_package = "github.com/randil-h/CTSE-Mood-Rule-Service/proto/moodrule";
+
+// MoodRuleService provides product recommendations based on user context
+service MoodRuleService {
+  rpc Recommend(UserContext) returns (ProductRecommendations);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// UserContext contains all contextual information for recommendation
+message UserContext {
+  string user_id = 1;
+  string mood = 2;
+  string time_of_day = 3;
+  string weather = 4;
+  string occasion = 5;
+  map<string, string> user_preferences = 6;
+  repeated string purchase_history_tags = 7;
+  string trace_id = 8;
+}
+
+// ProductRecommendations contains ranked product recommendations
+message ProductRecommendations {
+  repeated ProductRecommendation recommendations = 1;
+  string trace_id = 2;
+  RecommendationMetadata metadata = 3;
+}
+
+// ProductRecommendation represents a single recommended product
+message ProductRecommendation {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  double score = 7;
+  string image_url = 8;
+  repeated string matched_rules = 9;
+}
+
+// RecommendationMetadata provides insight into the recommendation process
+message RecommendationMetadata {
+  int32 rules_evaluated = 1;
+  int32 rules_matched = 2;
+  bool from_cache = 3;
+  int64 evaluation_time_ms = 4;
+  string rule_version = 5;
+}
+
+// HealthCheckRequest for health check endpoint
+message HealthCheckRequest {}
+
+// HealthCheckResponse returns service health status
+message HealthCheckResponse {
+  string status = 1;
+  map<string, string> dependencies = 2;
+}

@@ -1,0 +1,170 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mood-rule-postgres
+    environment:
+      POSTGRES_DB: mood_rules
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mood-rule-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: mood-rule-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - mood-rule-network
+
+  # Zookeeper (required for Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: mood-rule-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - mood-rule-network
+
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: mood-rule-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mood-rule-network
+
+  # Mood-Rule-Service
+  mood-rule-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mood-rule-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "50051:50051"  # gRPC
+      - "8080:8080"    # HTTP health/metrics
+    environment:
+      # Server Configuration
+      GRPC_PORT: 50051
+      HEALTH_PORT: 8080
+
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: mood_rules
+      DB_MAX_CONNS: 25
+      DB_MIN_CONNS: 5
+
+      # Redis Configuration
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      REDIS_POOL_SIZE: 100
+      REDIS_MIN_IDLE_CONNS: 10
+      REDIS_CACHE_TTL: 10m
+
+      # Kafka Configuration
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: rule-updates
+      KAFKA_GROUP_ID: mood-rule-service
+      KAFKA_START_OFFSET: -1
+
+      # Auth Service Configuration
+      AUTH_SERVICE_ADDR: auth-service:50052
+      AUTH_SERVICE_TIMEOUT: 5s
+      AUTH_SERVICE_MAX_RETRIES: 3
+
+      # Product Catalog Configuration
+      PRODUCT_CATALOG_ADDR: product-catalog:50053
+      PRODUCT_CATALOG_TIMEOUT: 5s
+      PRODUCT_CATALOG_MAX_RETRIES: 3
+
+      # Engine Configuration
+      ENGINE_INITIAL_CAPACITY: 1000
+      ENGINE_RELOAD_INTERVAL: 5m
+      ENGINE_MAX_CONCURRENCY: 10000
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - mood-rule-network
+    restart: unless-stopped
+
+  # API Gateway (from parent directory)
+  # Uncomment and adjust this section if you have an API Gateway
+  # api-gateway:
+  #   build:
+  #     context: ../CTSE-API-Gateway
+  #     dockerfile: Dockerfile
+  #   container_name: api-gateway
+  #   depends_on:
+  #     - mood-rule-service
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     MOOD_RULE_SERVICE_URL: mood-rule-service:50051
+  #   networks:
+  #     - mood-rule-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mood-rule-network:
+    driver: bridge

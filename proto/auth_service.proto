@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/randil-h/CTSE-Mood-Rule-Service/proto/auth";
+
+// AuthService provides user authentication and mood information
+service AuthService {
+  rpc GetUserInfo(GetUserInfoRequest) returns (UserInfo);
+}
+
+// GetUserInfoRequest requests user information
+message GetUserInfoRequest {
+  string user_id = 1;
+}
+
+// UserInfo returns complete user information including mood
+message UserInfo {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  string role = 4;
+  string mood = 5;
+  string tier = 6;
+  int32 purchase_count = 7;
+}

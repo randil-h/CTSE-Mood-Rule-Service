@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package productcatalog;
+
+option go_package = "github.com/randil-h/CTSE-Mood-Rule-Service/proto/productcatalog";
+
+// ProductCatalogService provides product information
+service ProductCatalogService {
+  rpc GetProductsByFilters(ProductFilterRequest) returns (ProductList);
+}
+
+// ProductFilterRequest specifies filters for product search
+message ProductFilterRequest {
+  repeated string tags = 1;
+  repeated string categories = 2;
+  double min_price = 3;
+  double max_price = 4;
+  int32 limit = 5;
+  string trace_id = 6;
+}
+
+// ProductList contains a list of products
+message ProductList {
+  repeated Product products = 1;
+  int32 total_count = 2;
+}
+
+// Product represents a single product
+message Product {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  string category = 5;
+  repeated string tags = 6;
+  string image_url = 7;
+  bool in_stock = 8;
+}

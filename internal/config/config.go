@@ -11,8 +11,6 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
-	Redis    RedisConfig
-	Kafka    KafkaConfig
 	Services ServicesConfig
 	Engine   EngineConfig
 }
@@ -41,25 +39,6 @@ type DatabaseConfig struct {
 	MinConns        int
 	MaxConnLifetime time.Duration
 	MaxConnIdleTime time.Duration
-}
-
-// RedisConfig holds Redis configuration
-type RedisConfig struct {
-	Addr         string
-	Password     string
-	DB           int
-	PoolSize     int
-	MinIdleConns int
-	CacheTTL     time.Duration
-}
-
-// KafkaConfig holds Kafka configuration
-type KafkaConfig struct {
-	Brokers        []string
-	Topic          string
-	GroupID        string
-	StartOffset    int64
-	CommitInterval time.Duration
 }
 
 // ServicesConfig holds external service configurations
@@ -117,21 +96,6 @@ func Load() (*Config, error) {
 			MaxConnLifetime: getEnvAsDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
 			MaxConnIdleTime: getEnvAsDuration("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
 		},
-		Redis: RedisConfig{
-			Addr:         getEnv("REDIS_ADDR", "localhost:6379"),
-			Password:     getEnv("REDIS_PASSWORD", ""),
-			DB:           getEnvAsInt("REDIS_DB", 0),
-			PoolSize:     getEnvAsInt("REDIS_POOL_SIZE", 100),
-			MinIdleConns: getEnvAsInt("REDIS_MIN_IDLE_CONNS", 10),
-			CacheTTL:     getEnvAsDuration("REDIS_CACHE_TTL", 10*time.Minute),
-		},
-		Kafka: KafkaConfig{
-			Brokers:        getEnvAsSlice("KAFKA_BROKERS", []string{"localhost:9092"}),
-			Topic:          getEnv("KAFKA_TOPIC", "rule-updates"),
-			GroupID:        getEnv("KAFKA_GROUP_ID", "mood-rule-service"),
-			StartOffset:    int64(getEnvAsInt("KAFKA_START_OFFSET", -1)),
-			CommitInterval: getEnvAsDuration("KAFKA_COMMIT_INTERVAL", 1*time.Second),
-		},
 		Services: ServicesConfig{
 			AuthService: ServiceEndpoint{
 				Address:      getEnv("AUTH_SERVICE_ADDR", "localhost:50052"),
@@ -179,12 +143,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Database.Host == "" {
 		return fmt.Errorf("database host is required")
-	}
-	if c.Redis.Addr == "" {
-		return fmt.Errorf("redis address is required")
-	}
-	if len(c.Kafka.Brokers) == 0 {
-		return fmt.Errorf("kafka brokers are required")
 	}
 	return nil
 }
@@ -244,27 +202,4 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		return defaultValue
 	}
 	return value
-}
-
-func getEnvAsSlice(key string, defaultValue []string) []string {
-	valueStr := os.Getenv(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-	// Simple split by comma - for production, consider a more robust parser
-	result := []string{}
-	for i := 0; i < len(valueStr); {
-		end := i
-		for end < len(valueStr) && valueStr[end] != ',' {
-			end++
-		}
-		if end > i {
-			result = append(result, valueStr[i:end])
-		}
-		i = end + 1
-	}
-	if len(result) == 0 {
-		return defaultValue
-	}
-	return result
 }

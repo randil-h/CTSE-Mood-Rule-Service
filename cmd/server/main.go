@@ -15,9 +15,10 @@ import (
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/cache"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/config"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/engine"
+	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/eventbus"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/grpc"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/grpc/clients"
-	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/kafka"
+	httphandler "github.com/randil-h/CTSE-Mood-Rule-Service/internal/http"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/repository"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/logger"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/metrics"
@@ -60,14 +61,16 @@ func main() {
 
 	logger.Info(ctx, "Database connection established")
 
-	// Initialize Redis cache
-	redisCache, err := cache.NewRedisCache(cfg.Redis)
-	if err != nil {
-		logger.Fatal(ctx, "Failed to initialize Redis cache", zap.Error(err))
-	}
-	defer redisCache.Close()
+	// Initialize in-memory cache
+	memoryCache := cache.NewMemoryCache(10 * time.Minute)
+	defer memoryCache.Close()
 
-	logger.Info(ctx, "Redis cache initialized")
+	logger.Info(ctx, "In-memory cache initialized")
+
+	// Initialize event bus
+	bus := eventbus.New(100) // buffer size of 100 events
+
+	logger.Info(ctx, "Event bus initialized")
 
 	// Initialize repository
 	ruleRepo := repository.NewRuleRepository(dbpool)
@@ -107,21 +110,25 @@ func main() {
 		logger.Info(ctx, "Product Catalog client initialized")
 	}
 
-	// Initialize Kafka consumer
-	kafkaConsumer := kafka.NewConsumer(cfg.Kafka, ruleEngine, redisCache)
-	if err := kafkaConsumer.Start(ctx); err != nil {
-		logger.Fatal(ctx, "Failed to start Kafka consumer", zap.Error(err))
-	}
-	defer kafkaConsumer.Close()
+	// Subscribe to rule update events: reload engine and invalidate cache
+	bus.Subscribe(eventbus.EventTypeRuleUpdated, func(ctx context.Context, event eventbus.Event) error {
+		if err := ruleEngine.Reload(ctx); err != nil {
+			return fmt.Errorf("failed to reload rules: %w", err)
+		}
+		if err := memoryCache.InvalidateByPattern(ctx, "*"); err != nil {
+			logger.Error(ctx, "Failed to invalidate cache", zap.Error(err))
+		}
+		bus.Publish(ctx, eventbus.EventTypeCacheInvalidate, map[string]string{"reason": "rule_update"})
+		return nil
+	})
+	logger.Info(ctx, "Rule update handler registered")
 
-	logger.Info(ctx, "Kafka consumer started")
-
-	// Subscribe to cache invalidations
-	if err := redisCache.SubscribeToInvalidations(ctx, func(msg string) {
-		logger.Info(ctx, "Cache invalidation received", zap.String("message", msg))
-	}); err != nil {
-		logger.Warn(ctx, "Failed to subscribe to cache invalidations", zap.Error(err))
-	}
+	// Subscribe to cache invalidation events
+	bus.Subscribe(eventbus.EventTypeCacheInvalidate, func(ctx context.Context, event eventbus.Event) error {
+		logger.Info(ctx, "Cache invalidation event received",
+			zap.Any("payload", event.Payload))
+		return nil
+	})
 
 	// Initialize gRPC server
 	grpcServer := grpclib.NewServer(
@@ -130,7 +137,7 @@ func main() {
 	)
 
 	// Register services
-	moodRuleServer := grpc.NewServer(ruleEngine, redisCache, authClient, productClient)
+	moodRuleServer := grpc.NewServer(ruleEngine, memoryCache, authClient, productClient)
 	pb.RegisterMoodRuleServiceServer(grpcServer, moodRuleServer)
 
 	// Register health service
@@ -154,6 +161,13 @@ func main() {
 		}
 	}()
 
+	// Initialize mood handler
+	authServiceURL := fmt.Sprintf("http://%s", os.Getenv("AUTH_SERVICE_HTTP_ADDR"))
+	if authServiceURL == "http://" {
+		authServiceURL = "http://auth:4000" // Default value
+	}
+	moodHandler := httphandler.NewMoodHandler(authServiceURL, bus)
+
 	// Start HTTP health check and metrics server
 	httpMux := http.NewServeMux()
 	httpMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +175,36 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 	httpMux.Handle("/metrics", promhttp.Handler())
+	httpMux.HandleFunc("/mood/update", moodHandler.UpdateMood)
+
+	httpMux.HandleFunc("/docs/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "docs/swagger.json")
+	})
+
+	httpMux.HandleFunc("/docs/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Mood-Rule-Service API</title>
+  <meta charset="utf-8"/>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: "/docs/swagger.json",
+      dom_id: '#swagger-ui',
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+      layout: "BaseLayout"
+    })
+  </script>
+</body>
+</html>`))
+	})
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.HealthPort),

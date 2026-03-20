@@ -1,0 +1,71 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "CTSE Mood-Rule-Service API",
+    "description": "HTTP endpoints for the Mood-Rule-Service.",
+    "version": "1.0"
+  },
+  "basePath": "/",
+  "schemes": ["http", "https"],
+  "securityDefinitions": {
+    "BearerAuth": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
+    }
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "produces": ["text/plain"],
+        "responses": {
+          "200": { "description": "OK" }
+        }
+      }
+    },
+    "/mood/update": {
+      "post": {
+        "summary": "Update user mood",
+        "description": "Updates the mood of a user. Forwards the change to the Auth Service and publishes a mood-changed event on the internal event bus.",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": { "$ref": "#/definitions/MoodUpdateRequest" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mood updated successfully",
+            "schema": { "$ref": "#/definitions/MoodUpdateResponse" }
+          },
+          "400": { "description": "Invalid request body" },
+          "401": { "description": "Missing or invalid Authorization header" },
+          "500": { "description": "Failed to update mood" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "MoodUpdateRequest": {
+      "type": "object",
+      "required": ["userId", "mood"],
+      "properties": {
+        "userId": { "type": "string", "example": "user-123" },
+        "mood":   { "type": "string", "example": "happy" }
+      }
+    },
+    "MoodUpdateResponse": {
+      "type": "object",
+      "properties": {
+        "message": { "type": "string", "example": "Mood updated successfully" },
+        "success": { "type": "boolean", "example": true }
+      }
+    }
+  }
+}

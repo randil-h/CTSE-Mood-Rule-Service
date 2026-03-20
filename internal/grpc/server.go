@@ -22,22 +22,22 @@ import (
 // Server implements the MoodRuleService gRPC server
 type Server struct {
 	pb.UnimplementedMoodRuleServiceServer
-	engine         *engine.RuleEngine
-	cache          *cache.RedisCache
-	authClient     *clients.AuthClient
-	productClient  *clients.ProductCatalogClient
+	engine        *engine.RuleEngine
+	cache         cache.Cache
+	authClient    *clients.AuthClient
+	productClient *clients.ProductCatalogClient
 }
 
 // NewServer creates a new gRPC server
 func NewServer(
 	eng *engine.RuleEngine,
-	cache *cache.RedisCache,
+	c cache.Cache,
 	authClient *clients.AuthClient,
 	productClient *clients.ProductCatalogClient,
 ) *Server {
 	return &Server{
 		engine:        eng,
-		cache:         cache,
+		cache:         c,
 		authClient:    authClient,
 		productClient: productClient,
 	}

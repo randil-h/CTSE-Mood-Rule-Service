@@ -48,6 +48,9 @@ COPY --from=builder /app/bin/mood-rule-service /app/mood-rule-service
 # Copy migrations (optional, if you want to run them from container)
 COPY --from=builder /app/migrations /app/migrations
 
+# Copy docs folder for Swagger documentation
+COPY --from=builder /app/docs /app/docs
+
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
 

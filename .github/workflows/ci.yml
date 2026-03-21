@@ -26,47 +26,24 @@ jobs:
 
       - name: Install protoc
         run: |
-          sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-          echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Generate proto files
         run: |
-          # Create subdirectories
-          mkdir -p proto/moodrule proto/auth proto/productcatalog
-
-          # Generate proto files
           protoc --go_out=. --go_opt=paths=source_relative \
                  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-                 proto/mood_rule_service.proto
-          protoc --go_out=. --go_opt=paths=source_relative \
-                 --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-                 proto/auth_service.proto
-          protoc --go_out=. --go_opt=paths=source_relative \
-                 --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-                 proto/product_catalog.proto
-
-          # Move generated files to correct subdirectories
-          mv proto/mood_rule_service.pb.go proto/moodrule/ 2>/dev/null || true
-          mv proto/mood_rule_service_grpc.pb.go proto/moodrule/ 2>/dev/null || true
-          mv proto/auth_service.pb.go proto/auth/ 2>/dev/null || true
-          mv proto/auth_service_grpc.pb.go proto/auth/ 2>/dev/null || true
-          mv proto/product_catalog.pb.go proto/productcatalog/ 2>/dev/null || true
-          mv proto/product_catalog_grpc.pb.go proto/productcatalog/ 2>/dev/null || true
+                 proto/mood_rule_service.proto proto/auth_service.proto proto/product_catalog.proto
 
       - name: Download dependencies
-        run: |
-          go mod download
-          go mod tidy
+        run: go mod download
 
-      - name: Run vet (non-blocking)
-        continue-on-error: true
+      - name: Run vet
         run: go vet ./...
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -tags=!standalone ./...
+        run: go test -v ./...
 
   # ── 2. Security scan (SonarCloud) ───────────────────────────────────────────
   sonar:
@@ -104,15 +81,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Create ECR repository if it doesn't exist
-        run: |
-          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }} || \
-          aws ecr create-repository \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
-            --region ${{ env.AWS_REGION }} \
-            --image-scanning-configuration scanOnPush=true \
-            --encryption-configuration encryptionType=AES256
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -162,40 +130,18 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Get AWS Account ID
-        id: aws-account
-        run: |
-          echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
-
-      - name: Check if task definition exists
-        id: check-taskdef
-        run: |
-          if aws ecs describe-task-definition --task-definition ctse-mood-rule-service --region ${{ secrets.AWS_REGION }} > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Prepare task definition (new deployment)
-        if: steps.check-taskdef.outputs.exists == 'false'
-        run: |
-          # Replace placeholders in task definition template
-          sed -e "s|\${AWS_ACCOUNT_ID}|${{ steps.aws-account.outputs.account_id }}|g" \
-              -e "s|\${AWS_REGION}|${{ secrets.AWS_REGION }}|g" \
-              -e "s|\${IMAGE_URI}|${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest|g" \
-              task-definition.json > task-definition-ready.json
-          mv task-definition-ready.json task-definition.json
-
-      - name: Download existing task definition
-        if: steps.check-taskdef.outputs.exists == 'true'
+      - name: Download task definition
         run: |
           aws ecs describe-task-definition \
             --task-definition ctse-mood-rule-service \
             --region ${{ secrets.AWS_REGION }} \
-            --query taskDefinition > task-definition-raw.json
+            --query taskDefinition > task-definition.json
 
+      - name: Clean task definition
+        run: |
           # Remove AWS-added fields that cause "Unexpected key" errors
-          cat task-definition-raw.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .tags, .enableFaultInjection)' > task-definition.json
+          cat task-definition.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .tags, .enableFaultInjection)' > task-definition-clean.json
+          mv task-definition-clean.json task-definition.json
 
       - name: Update ECS task definition with new image
         id: task-def
@@ -205,34 +151,10 @@ jobs:
           container-name: mood-rule-service
           image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
 
-      - name: Check if ECS service exists
-        id: check-service
-        run: |
-          if aws ecs describe-services \
-            --cluster ctse-cluster \
-            --services ctse-mood-rule-service-service \
-            --region ${{ secrets.AWS_REGION }} \
-            --query 'services[0].status' \
-            --output text | grep -q "ACTIVE"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Deploy to ECS service (update existing)
-        if: steps.check-service.outputs.exists == 'true'
+      - name: Deploy to ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ctse-mood-rule-service-service
           cluster: ctse-cluster
           wait-for-service-stability: true
-
-      - name: Create ECS service (first deployment)
-        if: steps.check-service.outputs.exists == 'false'
-        run: |
-          echo "⚠️  ECS Service does not exist. Please create it manually or run the infrastructure setup script."
-          echo "Service Name: ctse-mood-rule-service-service"
-          echo "Cluster: ctse-cluster"
-          echo "See infrastructure-setup.md for detailed instructions."
-          exit 1

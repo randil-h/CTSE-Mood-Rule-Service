@@ -26,12 +26,18 @@ jobs:
 
       - name: Install protoc
         run: |
+          sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Generate proto files
         run: |
+          # Create subdirectories
+          mkdir -p proto/moodrule proto/auth proto/productcatalog
+
+          # Generate proto files
           protoc --go_out=. --go_opt=paths=source_relative \
                  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
                  proto/mood_rule_service.proto
@@ -41,6 +47,14 @@ jobs:
           protoc --go_out=. --go_opt=paths=source_relative \
                  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
                  proto/product_catalog.proto
+
+          # Move generated files to correct subdirectories
+          mv proto/mood_rule_service.pb.go proto/moodrule/ 2>/dev/null || true
+          mv proto/mood_rule_service_grpc.pb.go proto/moodrule/ 2>/dev/null || true
+          mv proto/auth_service.pb.go proto/auth/ 2>/dev/null || true
+          mv proto/auth_service_grpc.pb.go proto/auth/ 2>/dev/null || true
+          mv proto/product_catalog.pb.go proto/productcatalog/ 2>/dev/null || true
+          mv proto/product_catalog_grpc.pb.go proto/productcatalog/ 2>/dev/null || true
 
       - name: Download dependencies
         run: go mod download

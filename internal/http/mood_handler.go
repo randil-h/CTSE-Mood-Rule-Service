@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/eventbus"
+	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/grpc/clients"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -27,12 +28,14 @@ type MoodUpdateResponse struct {
 type MoodHandler struct {
 	authServiceURL string
 	bus            *eventbus.EventBus
+	productClient  *clients.ProductCatalogClient
 }
 
-func NewMoodHandler(authServiceURL string, bus *eventbus.EventBus) *MoodHandler {
+func NewMoodHandler(authServiceURL string, bus *eventbus.EventBus, productClient *clients.ProductCatalogClient) *MoodHandler {
 	return &MoodHandler{
 		authServiceURL: authServiceURL,
 		bus:            bus,
+		productClient:  productClient,
 	}
 }
 
@@ -68,6 +71,16 @@ func (h *MoodHandler) UpdateMood(w http.ResponseWriter, r *http.Request) {
 
 	// Publish mood change event
 	h.publishMoodChangeEvent(ctx, req.UserID, req.Mood)
+
+	// Notify Product Catalog Service via gRPC
+	if h.productClient != nil {
+		if err := h.notifyProductCatalog(ctx, req.UserID, req.Mood); err != nil {
+			logger.Warn(ctx, "Failed to notify Product Catalog Service",
+				zap.String("user_id", req.UserID),
+				zap.Error(err))
+			// Don't fail the request if notification fails
+		}
+	}
 
 	// Return success response
 	resp := MoodUpdateResponse{
@@ -135,4 +148,32 @@ func (h *MoodHandler) publishMoodChangeEvent(ctx context.Context, userID string,
 	logger.Info(ctx, "Published mood change event",
 		zap.String("user_id", userID),
 		zap.String("mood", mood))
+}
+
+func (h *MoodHandler) notifyProductCatalog(ctx context.Context, userID string, mood string) error {
+	// Generate session ID for tracking
+	sessionID := fmt.Sprintf("sess_%d", time.Now().Unix())
+	traceID := fmt.Sprintf("trace_%s_%d", userID, time.Now().UnixNano())
+
+	// Call gRPC method to notify Product Catalog Service
+	ack, err := h.productClient.NotifyMoodUpdate(
+		ctx,
+		userID,
+		mood,
+		"", // previousMood - could be tracked if needed
+		sessionID,
+		traceID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to notify product catalog: %w", err)
+	}
+
+	logger.Info(ctx, "Product Catalog Service notified of mood update",
+		zap.String("user_id", userID),
+		zap.String("mood", mood),
+		zap.String("correlation_id", ack.CorrelationId),
+		zap.Int32("recommendations_generated", ack.RecommendationsGenerated))
+
+	return nil
 }

@@ -7,6 +7,7 @@ option go_package = "github.com/randil-h/CTSE-Mood-Rule-Service/proto/productcat
 // ProductCatalogService provides product information
 service ProductCatalogService {
   rpc GetProductsByFilters(ProductFilterRequest) returns (ProductList);
+  rpc NotifyMoodUpdate(MoodUpdateNotification) returns (MoodUpdateAcknowledgment);
 }
 
 // ProductFilterRequest specifies filters for product search
@@ -35,4 +36,29 @@ message Product {
   repeated string tags = 6;
   string image_url = 7;
   bool in_stock = 8;
+}
+
+// MoodUpdateNotification contains mood update information
+message MoodUpdateNotification {
+  string user_id = 1;
+  string mood = 2;
+  string previous_mood = 3;
+  string session_id = 4;
+  int64 timestamp = 5;
+  MoodMetadata metadata = 6;
+}
+
+// MoodMetadata contains additional context about mood update
+message MoodMetadata {
+  string source = 1;
+  int32 response_time = 2;
+  string device_type = 3;
+}
+
+// MoodUpdateAcknowledgment confirms mood update receipt
+message MoodUpdateAcknowledgment {
+  bool success = 1;
+  string correlation_id = 2;
+  int64 timestamp = 3;
+  int32 recommendations_generated = 4;
 }

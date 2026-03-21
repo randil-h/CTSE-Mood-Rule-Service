@@ -166,7 +166,7 @@ func main() {
 	if authServiceURL == "http://" {
 		authServiceURL = "http://auth:4000" // Default value
 	}
-	moodHandler := httphandler.NewMoodHandler(authServiceURL, bus)
+	moodHandler := httphandler.NewMoodHandler(authServiceURL, bus, productClient)
 
 	// Start HTTP health check and metrics server
 	httpMux := http.NewServeMux()

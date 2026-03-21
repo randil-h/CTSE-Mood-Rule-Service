@@ -90,15 +90,21 @@ func (c *AuthClient) GetUserMood(ctx context.Context, userID string, traceID str
 			reqCtx, cancel := context.WithTimeout(ctx, c.timeout)
 			defer cancel()
 
-			resp, err := c.client.GetUserInfo(reqCtx, &pb.GetUserInfoRequest{
-				UserId: userID,
-			})
+			// TODO: Implement GetUserInfo RPC in Auth Service
+			// For now, returning empty mood as this RPC method is not yet implemented
+			_ = reqCtx
+			_ = userID
+			return "", fmt.Errorf("GetUserInfo RPC not implemented in Auth Service")
 
-			if err != nil {
-				return "", err
-			}
-
-			return resp.Mood, nil
+			// resp, err := c.client.GetUserInfo(reqCtx, &pb.GetUserInfoRequest{
+			// 	UserId: userID,
+			// })
+			//
+			// if err != nil {
+			// 	return "", err
+			// }
+			//
+			// return resp.Mood, nil
 		})
 
 		if err == nil {

@@ -32,8 +32,9 @@ jobs:
 
       - name: Generate proto files
         run: |
-          protoc --go_out=. --go_opt=paths=source_relative \
-                 --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+          mkdir -p proto/moodrule proto/auth proto/productcatalog
+          protoc --go_out=. --go_opt=module=github.com/randil-h/CTSE-Mood-Rule-Service \
+                 --go-grpc_out=. --go-grpc_opt=module=github.com/randil-h/CTSE-Mood-Rule-Service \
                  proto/mood_rule_service.proto proto/auth_service.proto proto/product_catalog.proto
 
       - name: Download dependencies

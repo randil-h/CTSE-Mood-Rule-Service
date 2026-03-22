@@ -14,9 +14,9 @@ COPY go.mod ./
 # Copy source code
 COPY . .
 
-# Install protoc-gen-go and protoc-gen-go-grpc
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+# Install protoc-gen-go and protoc-gen-go-grpc (pinned to versions compatible with Go 1.23)
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.35.1 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 # Generate protobuf files in correct subdirectories
 RUN mkdir -p proto/moodrule proto/auth proto/productcatalog && \

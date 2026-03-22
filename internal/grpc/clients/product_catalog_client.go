@@ -41,7 +41,6 @@ func NewProductCatalogClient(cfg config.ServiceEndpoint) (*ProductCatalogClient,
 
 	client := pb.NewProductCatalogServiceClient(conn)
 
-	// Setup circuit breaker
 	cbSettings := gobreaker.Settings{
 		Name:        "ProductCatalog",
 		MaxRequests: cfg.CircuitBreaker.MaxRequests,

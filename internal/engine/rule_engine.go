@@ -8,10 +8,15 @@ import (
 	"time"
 
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/model"
-	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/repository"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/logger"
 	"go.uber.org/zap"
 )
+
+// RuleStore defines the interface for rule repository operations
+type RuleStore interface {
+	GetAllActiveRules(ctx context.Context) ([]*model.Rule, error)
+	GetMaxVersion(ctx context.Context) (int, error)
+}
 
 // RuleEngine manages and evaluates rules in memory
 type RuleEngine struct {
@@ -19,11 +24,11 @@ type RuleEngine struct {
 	rules       []*model.Rule
 	rulesByMood map[string][]*model.Rule
 	version     int
-	repo        *repository.RuleRepository
+	repo        RuleStore
 }
 
 // NewRuleEngine creates a new rule engine
-func NewRuleEngine(repo *repository.RuleRepository) *RuleEngine {
+func NewRuleEngine(repo RuleStore) *RuleEngine {
 	return &RuleEngine{
 		rules:       make([]*model.Rule, 0, 1000),
 		rulesByMood: make(map[string][]*model.Rule),

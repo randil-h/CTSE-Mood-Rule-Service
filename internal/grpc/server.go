@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/cache"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/engine"
-	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/grpc/clients"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/model"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/logger"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/metrics"
@@ -19,21 +18,46 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// RuleEvaluator defines the interface for rule evaluation
+type RuleEvaluator interface {
+	Evaluate(ctx context.Context, matchCtx *model.MatchContext) ([]*model.Rule, engine.EvaluationStats)
+	GetVersion() int
+	GetRuleCount() int
+}
+
+// AuthClient defines the interface for authentication service
+type AuthClient interface {
+	GetUserMood(ctx context.Context, userID string, traceID string) (string, error)
+}
+
+// ProductClient defines the interface for product catalog service
+type ProductClient interface {
+	GetProductsByFilters(
+		ctx context.Context,
+		tags []string,
+		categories []string,
+		minPrice float64,
+		maxPrice float64,
+		limit int32,
+		traceID string,
+	) ([]*model.Product, error)
+}
+
 // Server implements the MoodRuleService gRPC server
 type Server struct {
 	pb.UnimplementedMoodRuleServiceServer
-	engine        *engine.RuleEngine
+	engine        RuleEvaluator
 	cache         cache.Cache
-	authClient    *clients.AuthClient
-	productClient *clients.ProductCatalogClient
+	authClient    AuthClient
+	productClient ProductClient
 }
 
 // NewServer creates a new gRPC server
 func NewServer(
-	eng *engine.RuleEngine,
+	eng RuleEvaluator,
 	c cache.Cache,
-	authClient *clients.AuthClient,
-	productClient *clients.ProductCatalogClient,
+	authClient AuthClient,
+	productClient ProductClient,
 ) *Server {
 	return &Server{
 		engine:        eng,

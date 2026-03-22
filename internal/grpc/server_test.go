@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/cache"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/engine"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/model"
 	pb "github.com/randil-h/CTSE-Mood-Rule-Service/proto/moodrule"
@@ -37,7 +38,7 @@ type MockCache struct {
 	mock.Mock
 }
 
-func (m *MockCache) Get(ctx context.Context, key interface{}) ([]byte, error) {
+func (m *MockCache) Get(ctx context.Context, key cache.CacheKey) ([]byte, error) {
 	args := m.Called(ctx, key)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -45,8 +46,36 @@ func (m *MockCache) Get(ctx context.Context, key interface{}) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+func (m *MockCache) Set(ctx context.Context, key cache.CacheKey, value interface{}) error {
+	args := m.Called(ctx, key, value)
+	return args.Error(0)
+}
+
+func (m *MockCache) Delete(ctx context.Context, key cache.CacheKey) error {
+	args := m.Called(ctx, key)
+	return args.Error(0)
+}
+
+func (m *MockCache) InvalidateByPattern(ctx context.Context, pattern string) error {
+	args := m.Called(ctx, pattern)
+	return args.Error(0)
+}
+
+func (m *MockCache) GetStats(ctx context.Context) (map[string]string, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
 func (m *MockCache) Ping(ctx context.Context) error {
 	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockCache) Close() error {
+	args := m.Called()
 	return args.Error(0)
 }
 

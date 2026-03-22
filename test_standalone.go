@@ -1,3 +1,6 @@
+//go:build standalone
+// +build standalone
+
 package main
 
 import (

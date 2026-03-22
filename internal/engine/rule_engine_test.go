@@ -2,12 +2,24 @@ package engine
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/randil-h/CTSE-Mood-Rule-Service/internal/model"
+	"github.com/randil-h/CTSE-Mood-Rule-Service/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize logger for tests
+	if err := logger.Init(true); err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
+
+	os.Exit(m.Run())
+}
 
 // MockRuleRepository is a mock implementation for testing
 type MockRuleRepository struct {
@@ -139,9 +151,9 @@ func TestRuleEngineEvaluate(t *testing.T) {
 
 func TestRuleMatching(t *testing.T) {
 	tests := []struct {
-		name      string
-		rule      *model.Rule
-		context   *model.MatchContext
+		name        string
+		rule        *model.Rule
+		context     *model.MatchContext
 		shouldMatch bool
 	}{
 		{

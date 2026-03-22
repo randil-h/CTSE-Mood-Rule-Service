@@ -160,7 +160,7 @@ func (h *MoodHandler) notifyProductCatalog(ctx context.Context, userID string, m
 		ctx,
 		userID,
 		mood,
-		"", // previousMood - could be tracked if needed
+		"",
 		sessionID,
 		traceID,
 	)

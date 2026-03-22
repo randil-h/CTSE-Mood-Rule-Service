@@ -269,7 +269,6 @@ func initDatabase(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	// Test connection
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}

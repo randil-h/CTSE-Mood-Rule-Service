@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Mood-Rule-Service
 # Stage 1: Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make protobuf-dev protobuf
@@ -14,9 +14,9 @@ COPY go.mod ./
 # Copy source code
 COPY . .
 
-# Install protoc-gen-go and protoc-gen-go-grpc (pinned versions for Go 1.22 compatibility)
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0 && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
+# Install protoc-gen-go and protoc-gen-go-grpc
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 # Generate protobuf files in correct subdirectories
 RUN mkdir -p proto/moodrule proto/auth proto/productcatalog && \

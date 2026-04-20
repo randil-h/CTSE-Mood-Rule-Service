@@ -1,0 +1,81 @@
+{
+  "family": "ctse-mood-rule-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::357768533837:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "mood-rule-service",
+      "image": "357768533837.dkr.ecr.eu-north-1.amazonaws.com/ctse-mood-rule-service:latest",
+      "cpu": 0,
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp",
+          "name": "http-8080",
+          "appProtocol": "http"
+        },
+        {
+          "containerPort": 50051,
+          "hostPort": 50051,
+          "protocol": "tcp",
+          "name": "grpc-50051",
+          "appProtocol": "grpc"
+        }
+      ],
+      "environment": [
+        { "name": "GRPC_PORT", "value": "50051" },
+        { "name": "HEALTH_PORT", "value": "8080" },
+        { "name": "AUTH_SERVICE_ADDR", "value": "auth-service:4000" },
+        { "name": "PRODUCT_CATALOG_ADDR", "value": "product-service:50051" },
+        { "name": "DB_HOST", "value": "ep-sparkling-sea-ad98uatz-pooler.c-2.us-east-1.aws.neon.tech" },
+        { "name": "DB_PORT", "value": "5432" },
+        { "name": "DB_USER", "value": "neondb_owner" },
+        { "name": "DB_NAME", "value": "neondb" },
+        { "name": "DB_SSLMODE", "value": "require" },
+        { "name": "DB_MAX_CONNS", "value": "25" },
+        { "name": "DB_MIN_CONNS", "value": "5" },
+        { "name": "DB_MAX_CONN_LIFETIME", "value": "1h" },
+        { "name": "DB_MAX_CONN_IDLE_TIME", "value": "30m" },
+        { "name": "TLS_ENABLED", "value": "false" },
+        { "name": "READ_TIMEOUT", "value": "30s" },
+        { "name": "WRITE_TIMEOUT", "value": "30s" },
+        { "name": "MAX_PAYLOAD_MB", "value": "4" },
+        { "name": "ENGINE_INITIAL_CAPACITY", "value": "1000" },
+        { "name": "ENGINE_MAX_CONCURRENCY", "value": "10000" }
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:eu-north-1:357768533837:secret:mood-rule-service/db-password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ctse-mood-rule-service",
+          "awslogs-create-group": "true",
+          "awslogs-region": "eu-north-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "systemControls": []
+    }
+  ]
+}

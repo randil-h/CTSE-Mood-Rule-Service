@@ -205,4 +205,3 @@ func BenchmarkConcurrentEvaluation(b *testing.B) {
 		}
 	})
 }
-

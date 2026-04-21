@@ -62,7 +62,7 @@ EXPOSE 50051 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/healthz || exit 1
 
 # Run the application
 ENTRYPOINT ["/app/mood-rule-service"]

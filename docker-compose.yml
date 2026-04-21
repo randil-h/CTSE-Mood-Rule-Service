@@ -63,7 +63,7 @@ services:
       ENGINE_RELOAD_INTERVAL: 5m
       ENGINE_MAX_CONCURRENCY: 10000
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3

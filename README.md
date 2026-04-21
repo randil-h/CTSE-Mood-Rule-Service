@@ -133,10 +133,10 @@ docker-compose up -d
 docker-compose logs -f mood-rule-service
 
 # Check health
-curl http://localhost:8080/healthz
+curl http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/healthz
 
 # View metrics
-curl http://localhost:8080/metrics
+curl http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/metrics
 ```
 
 ### 3. Run Locally (Development)
@@ -338,7 +338,7 @@ recommendation:{mood}:{time_of_day}:{weather}:{user_segment}:v{rule_version}
 
 ### Prometheus Metrics
 
-Access at `http://localhost:8080/metrics`
+Access at `http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/metrics`
 
 **Key Metrics:**
 - `mood_rule_request_duration_ms`: Request latency histogram
@@ -451,7 +451,7 @@ docker-compose logs mood-rule-service
 ### Slow performance
 ```bash
 # Check metrics
-curl http://localhost:8080/metrics | grep duration
+curl http://ctse-product-alb-1026051491.eu-north-1.elb.amazonaws.com:8080/api/metrics | grep duration
 
 # Investigate:
 # - Cache hit ratio (should be >70%)
